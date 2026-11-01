@@ -1,53 +1,84 @@
-PTT Bluetooth — MVP Android
+# PTT Bluetooth — versão local 0.3.0
 
-Comunicador Push-to-Talk ponto a ponto para Android, usando exclusivamente Bluetooth Classic RFCOMM (SPP). Sem Wi-Fi, internet, servidor, cadastro ou conta.
+Comunicador Push-to-Talk Android, ponto a ponto, com troca de identidade por QR offline e voz por Bluetooth Classic RFCOMM. O tráfego de voz não usa internet, Wi-Fi, Supabase ou servidor remoto.
 
-## Estado desta entrega
+## O que esta versão implementa
 
-MVP de transporte de áudio entre dois aparelhos Android (versão 0.2.0). O enquadramento PCM foi isolado em `PcmFrameCodec` e possui testes JVM para ordem little-endian, EOF e quadros inválidos. Usa PCM mono 16 kHz/16-bit em blocos curtos sobre socket RFCOMM. Um aparelho toca AGUARDAR CONEXÃO e o outro CONECTAR A PAREADO.
+- Serviço Android em primeiro plano para manter o socket e os recursos de áudio ativos enquanto a Activity não está visível.
+- Identidade criptográfica persistente por instalação, com chave privada protegida em repouso por uma chave AES do Android Keystore.
+- QR de identidade assinado e temporário (validade de cinco minutos), sem endereço MAC, telefone, conta ou endereço de servidor.
+- Troca de contatos local: cada aparelho precisa ler e salvar o QR do outro.
+- Confirmação visual do fingerprint antes de salvar o contato.
+- Handshake mútuo: assinatura ECDSA P-256, ECDH P-256 efêmero e derivação HKDF-SHA-256.
+- Proteção dos quadros de áudio com AES-256-GCM, chaves direcionais e contador sequencial contra alteração/repetição de pacotes.
+- Captura somente enquanto o botão PTT está pressionado; não há gravação ou envio para nuvem.
 
-Limites atuais: aplicativo precisa permanecer aberto e visível; aparelhos devem estar pareados previamente nas configurações Android; ainda não há serviço de áudio em segundo plano, codec Opus, reconexão automática, grupos ou APK release assinado. O áudio ainda não tem criptografia de aplicação ponta a ponta. O pareamento Bluetooth do sistema não substitui criptografia própria.
+## Limites que continuam explícitos
+
+- O QR cadastra e autentica a identidade lógica. Ele não faz o vínculo Bluetooth do sistema operacional.
+- O Android ainda exige parear os dois aparelhos nas configurações Bluetooth antes da conexão RFCOMM.
+- A conexão é ponto a ponto entre dois telefones; não há salas/grupos, retransmissão ou mesh.
+- O áudio usa PCM mono 16 kHz/16-bit. Opus e otimização de consumo/latência ficam para uma etapa posterior.
+- Não há reconexão automática; o usuário inicia uma nova sessão manualmente.
+- A implementação criptográfica ainda não passou por auditoria independente. Não trate esta versão como mensageiro de alta garantia ou ferramenta para comunicações de risco até revisão especializada e testes.
+- Nenhum teste físico entre dois aparelhos está declarado como concluído nesta revisão.
 
 ## Requisitos
-- Android 8.0+ (API 26+)
-- Bluetooth Classic nos dois aparelhos
-- Permissão de dispositivos próximos e microfone
-- Aparelhos pareados nas configurações Android
 
-## Construir
-Abra esta pasta no Android Studio com Android Gradle Plugin 8.9.1 e Gradle 8.11.1. O wrapper Gradle ainda precisa ser gerado localmente.
+- Android 8.0 (API 26) ou superior.
+- Bluetooth Classic nos dois aparelhos.
+- Câmera para ler os QR.
+- Permissões de Dispositivos próximos/Bluetooth e Microfone.
+- Mesma versão do aplicativo nos dois aparelhos.
 
-```bash
-cd bluetooth-ptt
-gradle testDebugUnitTest assembleDebug
-```
+## Pareamento QR e conexão local
 
-APK debug: app/build/outputs/apk/debug/app-debug.apk.
+1. Instale o APK nos dois aparelhos e abra o PTT.
+2. No aparelho A, toque **Gerar meu QR de identidade**.
+3. No aparelho B, toque **Ler QR do outro aparelho**, leia o QR de A e confira o fingerprint.
+4. No aparelho B, gere o próprio QR.
+5. No aparelho A, leia o QR de B e confira o fingerprint. A troca precisa ser feita nos dois sentidos.
+6. Por um canal confiável, compare os fingerprints exibidos nos dois aparelhos. Só salve quando coincidirem.
+7. Abra as configurações Bluetooth do Android e pareie os dois celulares. Isso é uma exigência da camada Bluetooth, independente do QR.
+8. No aparelho A, toque **Aguardar conexão Bluetooth**.
+9. No aparelho B, escolha **Conectar contato QR pareado**, selecione o contato que foi salvo e depois o dispositivo Bluetooth pareado.
+10. Aguarde **CONECTADO — sessão criptografada** nos dois aparelhos.
+11. Segure **Segure para falar** para transmitir; solte para encerrar a transmissão. Teste primeiro com volume baixo.
+12. Use **Encerrar sessão** ao terminar.
 
-## Teste físico
-1. Instale o mesmo APK nos dois aparelhos.
-2. Ative Bluetooth e pareie os aparelhos nas configurações.
-3. No aparelho A, toque Aguardar conexão.
-4. No aparelho B, toque Conectar a pareado e selecione A.
-5. Aguarde Conectado nos dois.
-6. Segure Pressione para falar; solte para encerrar.
-7. Repita no sentido inverso.
+O QR tem validade de cinco minutos. Gere um novo se expirar. Um aparelho que não esteja na lista de contatos QR confiáveis será recusado no handshake, mesmo que esteja pareado pelo Android.
 
-Faça o primeiro teste com volume baixo. Emuladores não validam rádio Bluetooth real.
+## Compilação
 
-## Protocolo
-- Bluetooth Classic RFCOMM, UUID privado do aplicativo.
-- PCM signed 16-bit little-endian, mono, 16.000 amostras/s.
-- Prefixo unsigned 16-bit little-endian com tamanho do bloco; blocos de até 640 bytes (~20 ms).
-- Socket full duplex; captura local somente enquanto o botão está pressionado.
-- Não grava áudio em armazenamento.
+Abra a pasta bluetooth-ptt no Android Studio. Projeto usa Android Gradle Plugin 8.9.1, Gradle 8.11.1 e Java 17.
 
-## Estado de validação\n- Testes JVM do enquadramento adicionados ao projeto e ao workflow de CI.\n- Resultado de CI desta revisão ainda não confirmado; não considerar build aprovado até existir execução verde e artefato válido.\n- Nenhum teste físico foi executado nesta etapa.\n\n## Próximas etapas antes de uso contínuo
-1. Medir latência, perdas e estabilidade em Moto G75 + segundo Android.
-2. Substituir PCM por Opus para reduzir banda e consumo.
-3. Implementar serviço em primeiro plano com tipos connectedDevice|microphone, notificação persistente e início explícito enquanto Activity está visível.
-4. Implementar autenticação mútua e criptografia de sessão (por exemplo X25519 + ChaCha20-Poly1305), com chaves verificadas no pareamento inicial.
-5. Testes automatizados do protocolo, reconexão, áudio e ciclo de vida.
-6. Build release, assinatura própria e verificação do APK.
+Comandos:
+    cd bluetooth-ptt
+    gradle testDebugUnitTest assembleDebug --no-daemon
 
-Não anunciar como equivalente ao Zello até concluir testes de rádio, áudio em segundo plano, segurança e reconexão.
+APK de depuração:
+app/build/outputs/apk/debug/app-debug.apk
+
+A automação GitHub Actions também compila o APK debug e publica um artefato temporário na execução do workflow. O APK debug não é uma versão de distribuição assinada.
+
+## Segurança e privacidade
+
+- Nenhuma permissão de internet é declarada no manifesto.
+- O QR carrega identidade pública, nome local, nonce, expiração e assinatura; não transporta chave privada.
+- O contato salvo fica no armazenamento privado do aplicativo.
+- A chave privada de identidade fica cifrada em repouso por AES-GCM com chave não exportável do Android Keystore.
+- A sessão de áudio negocia segredo ECDH novo por conexão e usa chaves AES-GCM separadas por direção.
+- O contador de quadros precisa estar na sequência esperada; quadros repetidos, adulterados ou inválidos encerram a sessão.
+- O fingerprint deve ser comparado fora do próprio QR para reduzir risco de troca de identidade. O nome Bluetooth não é usado como prova de identidade.
+
+## Testes pendentes antes de declarar produção
+
+1. Build e testes automatizados verdes no CI.
+2. Instalação em dois Androids físicos, incluindo Moto G75 com Android 16.
+3. Verificar troca QR nos dois sentidos, tentativa com QR expirado e tentativa de dispositivo não confiável.
+4. Medir latência, cortes, aquecimento e consumo em teste contínuo.
+5. Testar rotação, bloqueio de tela, chamadas/interrupções, perda Bluetooth e revogação de permissões.
+6. Auditoria independente do protocolo criptográfico e teste de segurança.
+7. Build release assinada com chave de distribuição própria.
+
+A versão 0.3.0 é uma versão de teste funcional pretendida, não uma certificação de segurança nem uma alegação de teste físico concluído.
