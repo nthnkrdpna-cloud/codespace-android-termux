@@ -1,0 +1,38 @@
+name: Android Bluetooth PTT
+on:
+  pull_request:
+    paths:
+      - 'bluetooth-ptt/**'
+      - '.github/workflows/android-bluetooth-ptt.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'bluetooth-ptt/**'
+      - '.github/workflows/android-bluetooth-ptt.yml'
+permissions:
+  contents: read
+jobs:
+  debug-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Build debug APK
+        working-directory: bluetooth-ptt
+        run: gradle assembleDebug --no-daemon
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptt-bluetooth-debug
+          path: bluetooth-ptt/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
