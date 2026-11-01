@@ -4,7 +4,7 @@ Comunicador Push-to-Talk ponto a ponto para Android, usando exclusivamente Bluet
 
 ## Estado desta entrega
 
-Primeiro MVP de transporte de áudio entre dois aparelhos Android. Usa PCM mono 16 kHz/16-bit em blocos curtos sobre socket RFCOMM. Um aparelho toca AGUARDAR CONEXÃO e o outro CONECTAR A PAREADO.
+MVP de transporte de áudio entre dois aparelhos Android (versão 0.2.0). O enquadramento PCM foi isolado em `PcmFrameCodec` e possui testes JVM para ordem little-endian, EOF e quadros inválidos. Usa PCM mono 16 kHz/16-bit em blocos curtos sobre socket RFCOMM. Um aparelho toca AGUARDAR CONEXÃO e o outro CONECTAR A PAREADO.
 
 Limites atuais: aplicativo precisa permanecer aberto e visível; aparelhos devem estar pareados previamente nas configurações Android; ainda não há serviço de áudio em segundo plano, codec Opus, reconexão automática, grupos ou APK release assinado. O áudio ainda não tem criptografia de aplicação ponta a ponta. O pareamento Bluetooth do sistema não substitui criptografia própria.
 
@@ -19,7 +19,7 @@ Abra esta pasta no Android Studio com Android Gradle Plugin 8.9.1 e Gradle 8.11.
 
 ```bash
 cd bluetooth-ptt
-gradle assembleDebug
+gradle testDebugUnitTest assembleDebug
 ```
 
 APK debug: app/build/outputs/apk/debug/app-debug.apk.
@@ -42,7 +42,7 @@ Faça o primeiro teste com volume baixo. Emuladores não validam rádio Bluetoot
 - Socket full duplex; captura local somente enquanto o botão está pressionado.
 - Não grava áudio em armazenamento.
 
-## Próximas etapas antes de uso contínuo
+## Estado de validação\n- Testes JVM do enquadramento adicionados ao projeto e ao workflow de CI.\n- Resultado de CI desta revisão ainda não confirmado; não considerar build aprovado até existir execução verde e artefato válido.\n- Nenhum teste físico foi executado nesta etapa.\n\n## Próximas etapas antes de uso contínuo
 1. Medir latência, perdas e estabilidade em Moto G75 + segundo Android.
 2. Substituir PCM por Opus para reduzir banda e consumo.
 3. Implementar serviço em primeiro plano com tipos connectedDevice|microphone, notificação persistente e início explícito enquanto Activity está visível.
