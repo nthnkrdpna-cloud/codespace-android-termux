@@ -226,14 +226,8 @@ public class MainActivity extends Activity {
             try {
                 DataInputStream in = new DataInputStream(input);
                 while (connected && !destroyed) {
-                    int low = in.read();
-                    if (low < 0) break;
-                    int high = in.read();
-                    if (high < 0) break;
-                    int length = low | (high << 8);
-                    if (length < 2 || length > 2048 || (length & 1) != 0) throw new IOException("Quadro inválido: " + length);
-                    byte[] frame = new byte[length];
-                    in.readFully(frame);
+                    byte[] frame = PcmFrameCodec.read(in);
+                    if (frame == null) break;
                     if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) track.write(frame, 0, frame.length);
                 }
             } catch (IOException e) {
@@ -267,9 +261,7 @@ public class MainActivity extends Activity {
                     int count = recorder.read(frame, 0, frame.length);
                     if (count > 0 && (count & 1) == 0) {
                         synchronized (writeLock) {
-                            out.writeByte(count & 0xff);
-                            out.writeByte((count >>> 8) & 0xff);
-                            out.write(frame, 0, count);
+                            PcmFrameCodec.write(out, frame, count);
                             out.flush();
                         }
                     }
