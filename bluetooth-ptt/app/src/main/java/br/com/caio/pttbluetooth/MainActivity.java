@@ -20,6 +20,7 @@ import android.view.MotionEvent;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -180,7 +181,10 @@ public class MainActivity extends Activity implements PttService.Listener {
         note.setGravity(Gravity.CENTER);
         note.setTextSize(11);
         root.addView(note, new LinearLayout.LayoutParams(-1, 64));
-        setContentView(root);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(root);
+        setContentView(scroll);
     }
 
     private void requestCorePermissions() {
