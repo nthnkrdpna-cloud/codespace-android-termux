@@ -2,6 +2,7 @@ package br.com.caio.pttbluetooth;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ActivityNotFoundException;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -11,6 +12,8 @@ import android.webkit.CookieManager;
 import android.webkit.SafeBrowsingResponse;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -26,6 +29,8 @@ public class HubActivity extends Activity {
     private static final String HOST = "nthnkr.com";
     private WebView webView;
     private TextView offlineNotice;
+    private ValueCallback<Uri[]> filePathCallback;
+    private static final int FILE_CHOOSER_REQUEST = 73;
 
     private static final String[][] MODULES = {
         {"Portal", "https://nthnkr.com/"},
@@ -105,7 +110,45 @@ public class HubActivity extends Activity {
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, false);
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    Uri origin = request.getOrigin();
+                    boolean trustedOrigin = origin != null
+                            && "https".equalsIgnoreCase(origin.getScheme())
+                            && HOST.equalsIgnoreCase(origin.getHost());
+                    String[] requested = request.getResources();
+                    boolean audioOnly = requested.length > 0;
+                    for (String resource : requested) {
+                        if (!PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) audioOnly = false;
+                    }
+                    if (trustedOrigin && audioOnly
+                            && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    } else {
+                        request.deny();
+                    }
+                });
+            }
+
+            @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                filePathCallback = callback;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                try {
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                    return true;
+                } catch (ActivityNotFoundException e) {
+                    filePathCallback = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return routeUrl(request.getUrl());
@@ -136,6 +179,17 @@ public class HubActivity extends Activity {
                 Toast.makeText(HubActivity.this, "Conexão segura recusada. Verifique a rede ou o certificado.", Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST && filePathCallback != null) {
+            Uri[] result = resultCode == RESULT_OK && data != null && data.getData() != null
+                    ? new Uri[]{data.getData()} : null;
+            filePathCallback.onReceiveValue(result);
+            filePathCallback = null;
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {
