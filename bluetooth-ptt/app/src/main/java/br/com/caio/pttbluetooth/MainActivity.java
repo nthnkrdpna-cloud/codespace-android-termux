@@ -87,6 +87,11 @@ public class MainActivity extends Activity implements PttService.Listener {
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(-1, 60));
 
+        Button hubButton = new Button(this);
+        hubButton.setText("ABRIR HUB COMPLETO");
+        root.addView(hubButton, new LinearLayout.LayoutParams(-1, 48));
+        hubButton.setOnClickListener(v -> startActivity(new Intent(this, HubActivity.class)));
+
         status = new TextView(this);
         status.setText("Preparando…");
         status.setTextColor(0xFFFFC857);
