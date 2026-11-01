@@ -26,8 +26,8 @@ import android.widget.Toast;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import com.journeyapps.zxing.integration.android.IntentIntegrator;
-import com.journeyapps.zxing.integration.android.IntentResult;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -414,6 +414,12 @@ public class MainActivity extends Activity implements PttService.Listener {
 
     private void showMessage(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    @Override protected void onPause() {
+        if (service != null) service.endTalking();
+        if (talkButton != null) talkButton.setText("SEGURE PARA FALAR");
+        super.onPause();
     }
 
     @Override protected void onDestroy() {
