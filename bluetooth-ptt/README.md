@@ -1,84 +1,71 @@
-# PTT Bluetooth — versão local 0.3.0
+# Prisma Hub + PTT Android — versão 0.4.0
 
-Comunicador Push-to-Talk Android, ponto a ponto, com troca de identidade por QR offline e voz por Bluetooth Classic RFCOMM. O tráfego de voz não usa internet, Wi-Fi, Supabase ou servidor remoto.
+Aplicativo Android único com o PTT Bluetooth local e acesso aos módulos web existentes do Hub.
 
-## O que esta versão implementa
+## O que está no APK
 
-- Serviço Android em primeiro plano para manter o socket e os recursos de áudio ativos enquanto a Activity não está visível.
-- Identidade criptográfica persistente por instalação, com chave privada protegida em repouso por uma chave AES do Android Keystore.
-- QR de identidade assinado e temporário (validade de cinco minutos), sem endereço MAC, telefone, conta ou endereço de servidor.
-- Troca de contatos local: cada aparelho precisa ler e salvar o QR do outro.
-- Confirmação visual do fingerprint antes de salvar o contato.
-- Handshake mútuo: assinatura ECDSA P-256, ECDH P-256 efêmero e derivação HKDF-SHA-256.
-- Proteção dos quadros de áudio com AES-256-GCM, chaves direcionais e contador sequencial contra alteração/repetição de pacotes.
-- Captura somente enquanto o botão PTT está pressionado; não há gravação ou envio para nuvem.
+- PTT ponto a ponto por Bluetooth Classic RFCOMM.
+- Identidade por instalação, QR assinado temporário, troca bilateral e fingerprint.
+- Handshake ECDSA P-256 / ECDH P-256 / HKDF-SHA-256 e quadros AES-256-GCM.
+- Hub dentro do mesmo aplicativo, com Portal, Finanças, TV, Terminal/Observatório/Risk Desk, Terceira Margem, Notas, Caderno e Status.
+- Termo de uso/privacidade apresentado antes de gerar identidade, solicitar permissões ou iniciar a configuração.
+- Identificação local de fabricante, modelo e versão Android para selecionar e exibir um perfil de compatibilidade.
 
-## Limites que continuam explícitos
+## Configuração após o termo
 
-- O QR cadastra e autentica a identidade lógica. Ele não faz o vínculo Bluetooth do sistema operacional.
-- O Android ainda exige parear os dois aparelhos nas configurações Bluetooth antes da conexão RFCOMM.
-- A conexão é ponto a ponto entre dois telefones; não há salas/grupos, retransmissão ou mesh.
-- O áudio usa PCM mono 16 kHz/16-bit. Opus e otimização de consumo/latência ficam para uma etapa posterior.
-- Não há reconexão automática; o usuário inicia uma nova sessão manualmente.
-- A implementação criptográfica ainda não passou por auditoria independente. Não trate esta versão como mensageiro de alta garantia ou ferramenta para comunicações de risco até revisão especializada e testes.
-- Nenhum teste físico entre dois aparelhos está declarado como concluído nesta revisão.
+O app lê apenas fabricante, modelo, versão Android/API e disponibilidade declarada de Bluetooth/câmera. Esses atributos servem para compatibilidade e ficam no aparelho. Não lê IMEI, serial, localização, contatos ou histórico de chamadas.
 
-## Requisitos
+Depois do aceite, o app:
+1. prepara a identidade local com chave privada protegida pelo Android Keystore;
+2. solicita ao Android as permissões de Dispositivos próximos/Bluetooth e microfone;
+3. pede ao Android para ativar Bluetooth quando necessário;
+4. solicita câmera somente quando o usuário abrir a leitura de QR;
+5. apresenta um atalho para as configurações de permissões do próprio app.
 
-- Android 8.0 (API 26) ou superior.
-- Bluetooth Classic nos dois aparelhos.
-- Câmera para ler os QR.
-- Permissões de Dispositivos próximos/Bluetooth e Microfone.
-- Mesma versão do aplicativo nos dois aparelhos.
+O aplicativo não altera silenciosamente configurações globais, não usa root, Acessibilidade ou administrador do dispositivo. Permissões e ativação do Bluetooth continuam sob controle do Android e do usuário.
 
-## Pareamento QR e conexão local
+O nome padrão incluído no QR é genérico (`PTT Android`), para não divulgar fabricante/modelo ao contato. Um nome personalizado já existente é preservado.
 
-1. Instale o APK nos dois aparelhos e abra o PTT.
-2. No aparelho A, toque **Gerar meu QR de identidade**.
-3. No aparelho B, toque **Ler QR do outro aparelho**, leia o QR de A e confira o fingerprint.
-4. No aparelho B, gere o próprio QR.
-5. No aparelho A, leia o QR de B e confira o fingerprint. A troca precisa ser feita nos dois sentidos.
-6. Por um canal confiável, compare os fingerprints exibidos nos dois aparelhos. Só salve quando coincidirem.
-7. Abra as configurações Bluetooth do Android e pareie os dois celulares. Isso é uma exigência da camada Bluetooth, independente do QR.
-8. No aparelho A, toque **Aguardar conexão Bluetooth**.
-9. No aparelho B, escolha **Conectar contato QR pareado**, selecione o contato que foi salvo e depois o dispositivo Bluetooth pareado.
-10. Aguarde **CONECTADO — sessão criptografada** nos dois aparelhos.
-11. Segure **Segure para falar** para transmitir; solte para encerrar a transmissão. Teste primeiro com volume baixo.
-12. Use **Encerrar sessão** ao terminar.
+## Limites funcionais
 
-O QR tem validade de cinco minutos. Gere um novo se expirar. Um aparelho que não esteja na lista de contatos QR confiáveis será recusado no handshake, mesmo que esteja pareado pelo Android.
+- A voz PTT permanece local e ponto a ponto. Não usa internet, Wi-Fi, Supabase ou servidor remoto.
+- QR estabelece identidade lógica, mas não substitui o pareamento Bluetooth feito nas configurações do Android.
+- Os dois aparelhos precisam trocar QR nos dois sentidos, comparar fingerprints por um canal confiável e parear via Bluetooth.
+- O Hub WebView usa HTTPS e os serviços web existentes; seus módulos precisam de internet e mantêm as regras de login/permissão do Hub.
+- A entrada do portal no Android usa `/index.html`; a raiz pública do domínio não é a rota autenticada do portal.
+- Links externos são abertos fora do WebView. Links `intent:` e `stremio:` são permitidos para fluxos de mídia.
+- Não há grupos, mesh, Opus ou reconexão automática.
+- O protocolo criptográfico não passou por auditoria independente. Não classifique esta versão como mensageiro de alta garantia.
+- O APK gerado pelo CI é debug, não release assinada para publicação.
 
-## Compilação
+## Compilação e testes automatizados
 
-Abra a pasta bluetooth-ptt no Android Studio. Projeto usa Android Gradle Plugin 8.9.1, Gradle 8.11.1 e Java 17.
+Requisitos: Android Gradle Plugin 8.9.1, Gradle 8.11.1, Java 17, compile/target SDK 36 e min SDK 26.
 
-Comandos:
-    cd bluetooth-ptt
-    gradle testDebugUnitTest assembleDebug --no-daemon
+```bash
+cd bluetooth-ptt
+gradle testDebugUnitTest assembleDebug --no-daemon
+```
 
 APK de depuração:
-app/build/outputs/apk/debug/app-debug.apk
+`app/build/outputs/apk/debug/app-debug.apk`
 
-A automação GitHub Actions também compila o APK debug e publica um artefato temporário na execução do workflow. O APK debug não é uma versão de distribuição assinada.
+O GitHub Actions executa os testes JVM, compila o APK debug e publica o artefato temporário do workflow.
 
-## Segurança e privacidade
+## Testes físicos ainda obrigatórios
 
-- Nenhuma permissão de internet é declarada no manifesto.
-- O QR carrega identidade pública, nome local, nonce, expiração e assinatura; não transporta chave privada.
-- O contato salvo fica no armazenamento privado do aplicativo.
-- A chave privada de identidade fica cifrada em repouso por AES-GCM com chave não exportável do Android Keystore.
-- A sessão de áudio negocia segredo ECDH novo por conexão e usa chaves AES-GCM separadas por direção.
-- O contador de quadros precisa estar na sequência esperada; quadros repetidos, adulterados ou inválidos encerram a sessão.
-- O fingerprint deve ser comparado fora do próprio QR para reduzir risco de troca de identidade. O nome Bluetooth não é usado como prova de identidade.
+A compilação e os testes JVM não comprovam áudio real, compatibilidade de microfone/Bluetooth, persistência de sessão WebView ou reprodução de mídia. Antes de distribuição, instalar em dois Androids físicos e testar:
+1. aceite/recusa do termo e persistência da versão;
+2. identificação do aparelho e permissões revogadas/concedidas;
+3. QR bilateral, QR expirado e fingerprint incorreto;
+4. pareamento Android e conexão RFCOMM;
+5. transmissão/recepção de áudio, bloqueio de tela, chamadas/interrupções e desconexão;
+6. login Portal, permissões de cada módulo, arquivo de extrato, captura de voz em Notas, TV e retorno ao PTT.
 
-## Testes pendentes antes de declarar produção
+## Privacidade
 
-1. Build e testes automatizados verdes no CI.
-2. Instalação em dois Androids físicos, incluindo Moto G75 com Android 16.
-3. Verificar troca QR nos dois sentidos, tentativa com QR expirado e tentativa de dispositivo não confiável.
-4. Medir latência, cortes, aquecimento e consumo em teste contínuo.
-5. Testar rotação, bloqueio de tela, chamadas/interrupções, perda Bluetooth e revogação de permissões.
-6. Auditoria independente do protocolo criptográfico e teste de segurança.
-7. Build release assinada com chave de distribuição própria.
-
-A versão 0.3.0 é uma versão de teste funcional pretendida, não uma certificação de segurança nem uma alegação de teste físico concluído.
+- Voz PTT não sai do Bluetooth.
+- A chave privada da identidade local fica cifrada com chave não exportável do Android Keystore.
+- O QR contém material público de identidade, nunca a chave privada.
+- O aceite do termo é guardado localmente com versão e instante; não é enviado como telemetria.
+- O uso online do Hub continua sujeito aos serviços e políticas já usados pelo Hub.
