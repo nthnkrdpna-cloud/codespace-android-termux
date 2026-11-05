@@ -297,6 +297,12 @@ public class MainActivity extends Activity implements PttService.Listener {
         setContentView(scroll);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        // Re-read OS-controlled state after returning from Bluetooth or app settings.
+        if (initialized) refreshDeviceSummary();
+    }
+
     private void requestCorePermissions() {
         ArrayList<String> needed = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= 31
@@ -319,6 +325,7 @@ public class MainActivity extends Activity implements PttService.Listener {
                     return;
                 }
             }
+            refreshDeviceSummary();
             enableBluetoothIfNeeded();
         } else if (requestCode == REQ_CAMERA) {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) launchScanner();
