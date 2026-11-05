@@ -109,9 +109,11 @@ public final class IdentityStore {
                 .generatePrivate(new PKCS8EncodedKeySpec(privateBytes));
         String id = identityId(publicKey.getEncoded());
         String name = prefs.getString(KEY_NAME, null);
-        if (name == null || name.trim().isEmpty()) {
-            name = (Build.MANUFACTURER + " " + Build.MODEL).trim();
-            if (name.length() > 40) name = name.substring(0, 40);
+        String legacyDeviceName = (Build.MANUFACTURER + " " + Build.MODEL).trim();
+        // Do not disclose the handset model in the public QR nickname by default.
+        // Migrate only the old auto-generated label; keep any user-chosen name intact.
+        if (name == null || name.trim().isEmpty() || name.equals(legacyDeviceName)) {
+            name = "PTT Android";
             prefs.edit().putString(KEY_NAME, name).apply();
         }
         return new Identity(id, name, privateKey, publicKey);

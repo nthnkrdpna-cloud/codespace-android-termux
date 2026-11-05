@@ -20,6 +20,7 @@ import android.view.MotionEvent;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -36,6 +37,10 @@ import java.util.Set;
 public class MainActivity extends Activity implements PttService.Listener {
     private static final int REQ_PERMISSIONS = 41;
     private static final int REQ_CAMERA = 42;
+    private static final String TERMS_VERSION = "2026-11-04-v1";
+    private static final String CONSENT_PREFS = "prisma_local_consent";
+    private boolean initialized;
+    private TextView deviceText;
     private PttService service;
     private boolean bound;
     private Runnable pendingServiceAction;
@@ -62,7 +67,17 @@ public class MainActivity extends Activity implements PttService.Listener {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        String acceptedVersion = getSharedPreferences(CONSENT_PREFS, MODE_PRIVATE)
+                .getString("accepted_version", "");
+        if (!TERMS_VERSION.equals(acceptedVersion)) showTermsDialog(true);
+        else initializeAfterConsent();
+    }
+
+    private void initializeAfterConsent() {
+        if (initialized || isFinishing()) return;
+        initialized = true;
         buildUi();
+        refreshDeviceSummary();
         try {
             IdentityStore.Identity identity = IdentityStore.load(this);
             identityText.setText("IDENTIDADE LOCAL\n" + identity.name + "\n" + identity.id.toUpperCase());
@@ -73,6 +88,85 @@ public class MainActivity extends Activity implements PttService.Listener {
         requestCorePermissions();
     }
 
+    private void showTermsDialog(boolean required) {
+        TextView body = new TextView(this);
+        body.setText(
+                "PRISMA HUB + PTT\nTERMO DE USO E PRIVACIDADE — versão 1.0\n\n" +
+                "1. FINALIDADE\n" +
+                "O aplicativo reúne os módulos do Hub e o comunicador PTT Bluetooth. A navegação do Hub usa internet e os serviços associados à sua conta. O PTT transmite voz diretamente entre dois aparelhos pareados por Bluetooth Classic.\n\n" +
+                "2. MICROFONE E ÁUDIO\n" +
+                "O microfone é ativado somente enquanto você mantém o botão PTT pressionado. O áudio é enviado ao outro aparelho pela conexão Bluetooth local; não é enviado ao Hub, Supabase, Cloudflare ou outro servidor. O aplicativo não grava áudio continuamente.\n\n" +
+                "3. IDENTIFICAÇÃO DO APARELHO\n" +
+                "Após este aceite, o aplicativo consulta localmente fabricante, modelo e versão do Android para selecionar e apresentar um perfil de compatibilidade. Esses dados de modelo não são enviados ao Hub. O aplicativo não consulta IMEI, número de série, contatos, chamadas ou localização. O nome padrão divulgado no QR do PTT é genérico.\n\n" +
+                "4. QR E IDENTIDADE\n" +
+                "A câmera só será solicitada quando você escolher ler um QR. O QR contém uma identidade pública temporária e dados necessários à confiança entre os dois aparelhos; nunca contém a chave privada. Confira os fingerprints por um canal confiável. O QR não substitui o pareamento Bluetooth feito nas configurações do Android.\n\n" +
+                "5. PERMISSÕES E CONFIGURAÇÕES\n" +
+                "Depois do aceite, o aplicativo poderá solicitar ao Android acesso a Dispositivos próximos/Bluetooth e ao microfone. A câmera é solicitada apenas para leitura de QR. O Android exibirá suas próprias telas de autorização. O aplicativo não ativa silenciosamente rádios, não altera configurações globais, não usa root, Acessibilidade, administrador do dispositivo ou permissões especiais. Você pode negar permissões, revogá-las nas Configurações ou interromper o uso; os recursos dependentes delas deixarão de funcionar.\n\n" +
+                "6. DADOS DO HUB\n" +
+                "Ao entrar nos módulos online, autenticação, permissões e dados seguem as regras do Hub e dos serviços que o hospedam. O aceite deste termo não concede acesso a contas, não muda papéis e não compartilha espaços privados. Os módulos online não funcionam integralmente sem conexão.\n\n" +
+                "7. LIMITES E RESPONSABILIDADE\n" +
+                "O PTT é ponto a ponto e requer testes físicos em dois aparelhos. O desenho criptográfico ainda não passou por auditoria independente; não o use como canal de alta garantia, emergência ou para informações cuja exposição possa causar dano. O Terminal é informativo, pode ter atrasos e não executa ordens nem constitui recomendação de investimento. A reprodução de TV depende das fontes disponíveis e pode abrir um player externo.\n\n" +
+                "8. ACEITE\n" +
+                "A aceitação é registrada localmente neste aparelho, com a versão e a data, para evitar exibir o termo a cada abertura. Ela não é enviada como telemetria. Ao limpar os dados do aplicativo ou instalar uma versão com termo atualizado, o aceite poderá ser solicitado novamente.\n\n" +
+                "Ao continuar, você declara que leu estas condições e autoriza o aplicativo a solicitar, separadamente, as permissões necessárias às funções que escolher usar."
+        );
+        body.setTextColor(0xFF202A34);
+        body.setTextSize(14);
+        body.setPadding(24, 16, 24, 16);
+        body.setLineSpacing(4f, 1.08f);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(body);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(required ? "Antes de configurar o aparelho" : "Termo de uso e privacidade")
+                .setView(scroll);
+        if (required) {
+            builder.setCancelable(false)
+                    .setPositiveButton("Li e aceito — continuar", (dialog, which) -> {
+                        getSharedPreferences(CONSENT_PREFS, MODE_PRIVATE).edit()
+                                .putString("accepted_version", TERMS_VERSION)
+                                .putLong("accepted_at_epoch_ms", System.currentTimeMillis())
+                                .apply();
+                        initializeAfterConsent();
+                    })
+                    .setNegativeButton("Não aceito", (dialog, which) -> finish());
+        } else {
+            builder.setPositiveButton("Fechar", null);
+        }
+        AlertDialog dialog = builder.create();
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnCancelListener(d -> { if (required) finish(); });
+        dialog.show();
+    }
+
+    private void refreshDeviceSummary() {
+        if (deviceText == null) return;
+        String maker = Build.MANUFACTURER == null ? "Fabricante não informado" : Build.MANUFACTURER;
+        String model = Build.MODEL == null ? "Modelo não informado" : Build.MODEL;
+        String release = Build.VERSION.RELEASE == null ? "versão não informada" : Build.VERSION.RELEASE;
+        boolean bluetooth = getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH);
+        boolean camera = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+        String btState = bluetooth ? "disponível; aguardando permissão/estado do sistema" : "não detectado";
+        if (bluetooth && (Build.VERSION.SDK_INT < 31
+                || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)) {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            btState = adapter != null && adapter.isEnabled() ? "disponível e ligado" : "disponível, mas desligado";
+        }
+        deviceText.setText(
+                "APARELHO RECONHECIDO LOCALMENTE\n" + maker + " " + model
+                + " • Android " + release + " (API " + Build.VERSION.SDK_INT + ")"
+                + "\nBluetooth Classic: " + btState
+                + "\nCâmera para QR: " + (camera ? "disponível; será solicitada quando necessária" : "não detectada")
+                + "\nPerfil interno: áudio PCM mono 16 kHz / 16-bit; conexão RFCOMM"
+                + "\nFabricante/modelo são usados só para compatibilidade neste aparelho."
+        );
+    }
+
+    private void openAppPermissionSettings() {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:" + getPackageName()));
+        startActivity(intent);
+    }
+
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -81,11 +175,16 @@ public class MainActivity extends Activity implements PttService.Listener {
         root.setBackgroundColor(0xFF101820);
 
         TextView title = new TextView(this);
-        title.setText("PTT  /  BLUETOOTH PRIVADO");
+        title.setText("PRISMA HUB  +  PTT BLUETOOTH");
         title.setTextColor(0xFFFFFFFF);
         title.setTextSize(22);
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(-1, 60));
+
+        Button hubButton = new Button(this);
+        hubButton.setText("ABRIR HUB COMPLETO");
+        root.addView(hubButton, new LinearLayout.LayoutParams(-1, 48));
+        hubButton.setOnClickListener(v -> startActivity(new Intent(this, HubActivity.class)));
 
         status = new TextView(this);
         status.setText("Preparando…");
@@ -99,6 +198,13 @@ public class MainActivity extends Activity implements PttService.Listener {
         identityText.setTextSize(12);
         identityText.setGravity(Gravity.CENTER);
         root.addView(identityText, new LinearLayout.LayoutParams(-1, 76));
+
+        deviceText = new TextView(this);
+        deviceText.setTextColor(0xFF91A4B7);
+        deviceText.setTextSize(12);
+        deviceText.setGravity(Gravity.CENTER);
+        deviceText.setPadding(8, 8, 8, 8);
+        root.addView(deviceText, new LinearLayout.LayoutParams(-1, -2));
 
         Button showQr = new Button(this);
         showQr.setText("GERAR MEU QR DE IDENTIDADE");
@@ -169,13 +275,32 @@ public class MainActivity extends Activity implements PttService.Listener {
         root.addView(bluetoothSettings, new LinearLayout.LayoutParams(-1, 46));
         bluetoothSettings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
 
+        Button permissionsButton = new Button(this);
+        permissionsButton.setText("REVISAR PERMISSÕES DO APLICATIVO");
+        root.addView(permissionsButton, new LinearLayout.LayoutParams(-1, 46));
+        permissionsButton.setOnClickListener(v -> openAppPermissionSettings());
+
+        Button termsButton = new Button(this);
+        termsButton.setText("LER TERMO DE USO E PRIVACIDADE");
+        root.addView(termsButton, new LinearLayout.LayoutParams(-1, 42));
+        termsButton.setOnClickListener(v -> showTermsDialog(false));
+
         TextView note = new TextView(this);
         note.setText("Offline • Bluetooth Classic • QR de identidade • ECDH + AES-GCM\nLeia o QR do outro aparelho nos dois sentidos. Depois, pareie os celulares nas configurações Bluetooth.");
         note.setTextColor(0xFF91A4B7);
         note.setGravity(Gravity.CENTER);
         note.setTextSize(11);
         root.addView(note, new LinearLayout.LayoutParams(-1, 64));
-        setContentView(root);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(root);
+        setContentView(scroll);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        // Re-read OS-controlled state after returning from Bluetooth or app settings.
+        if (initialized) refreshDeviceSummary();
     }
 
     private void requestCorePermissions() {
@@ -200,6 +325,7 @@ public class MainActivity extends Activity implements PttService.Listener {
                     return;
                 }
             }
+            refreshDeviceSummary();
             enableBluetoothIfNeeded();
         } else if (requestCode == REQ_CAMERA) {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) launchScanner();
