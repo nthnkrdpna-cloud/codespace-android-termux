@@ -33,7 +33,7 @@ public class HubActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 73;
 
     private static final String[][] MODULES = {
-        {"Portal", "https://nthnkr.com/"},
+        {"Portal", "https://nthnkr.com/index.html"},
         {"Finanças", "https://nthnkr.com/financas"},
         {"TV", "https://nthnkr.com/tv"},
         {"Terminal", "https://nthnkr.com/terminal"},
@@ -160,6 +160,18 @@ public class HubActivity extends Activity {
                 String scheme = uri.getScheme();
                 String host = uri.getHost();
                 if ("https".equalsIgnoreCase(scheme) && HOST.equalsIgnoreCase(host)) return false;
+                if ("http".equalsIgnoreCase(scheme) && HOST.equalsIgnoreCase(host)) {
+                    Toast.makeText(HubActivity.this, "O Hub só abre por HTTPS.", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                boolean allowedExternal = "https".equalsIgnoreCase(scheme)
+                        || "mailto".equalsIgnoreCase(scheme)
+                        || "intent".equalsIgnoreCase(scheme)
+                        || "stremio".equalsIgnoreCase(scheme);
+                if (!allowedExternal) {
+                    Toast.makeText(HubActivity.this, "Tipo de link bloqueado pelo aplicativo.", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, uri));
                 } catch (Exception e) {
